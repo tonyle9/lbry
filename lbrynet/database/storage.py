@@ -562,12 +562,12 @@ class SQLiteStorage(object):
                     log.warning("claim %s contains the same stream as the one already downloaded from claim %s",
                                 claim_id, known_claim_id)
 
-    def get_stream_hashes_for_claim_id(self, claim_id):
+    def get_old_stream_hashes_for_claim_id(self, claim_id, new_stream_hash):
         return self.run_and_return_list(
             "select f.stream_hash from file f "
             "inner join content_claim cc on f.stream_hash=cc.stream_hash "
-            "inner join claim c on c.claim_outpoint=cc.claim_outpoint and c.claim_id=?",
-            claim_id
+            "inner join claim c on c.claim_outpoint=cc.claim_outpoint and c.claim_id=? "
+            "where f.stream_hash!=?", claim_id, new_stream_hash
         )
 
     @defer.inlineCallbacks
