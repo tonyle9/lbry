@@ -684,3 +684,25 @@ class SQLiteStorage(object):
                 ).fetchall()
             ]
         return self.db.runInteraction(_get_unknown_certificate_claim_ids)
+
+    @defer.inlineCallbacks
+    def get_pending_claim_outpoints(self):
+        claim_outpoints = yield self.run_and_return_list("select claim_outpoint from claim where height=-1")
+        results = {}  # {txid: [nout, ...]}
+        for outpoint_str in claim_outpoints:
+            txid, nout = outpoint_str.split(":")
+            outputs = results.get(txid, [])
+            outputs.append(int(nout))
+            results[txid] = outputs
+        if results:
+            log.info("missing transaction heights for %i claims", len(results))
+        defer.returnValue(results)
+
+    def save_claim_tx_heights(self, claim_tx_heights):
+        def _save_claim_heights(transaction):
+            for outpoint, height in claim_tx_heights.iteritems():
+                transaction.execute(
+                    "update claim set height=? where claim_outpoint=? and height=-1",
+                    (height, outpoint)
+                )
+        return self.db.runInteraction(_save_claim_heights)
