@@ -291,7 +291,7 @@ ADJUSTABLE_SETTINGS = {
     'use_keyring': (bool, False),
     'wallet': (str, LBRYUM_WALLET),
     'blockchain_name': (str, 'lbrycrd_main'),
-    'lbryum_servers': (list, [('lbryum8.lbry.io', 50001), ('lbryum9.lbry.io', 50001)], server_list)
+    'lbryum_servers': (list, [('jack.lbry.tech', 50001)], server_list)
 }
 
 
