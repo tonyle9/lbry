@@ -1,16 +1,20 @@
 from collections import defaultdict, deque
 import datetime
 import logging
+import requests
+import shutil
 from decimal import Decimal
 from zope.interface import implements
 from twisted.internet import threads, reactor, defer, task
 from twisted.python.failure import Failure
 from twisted.internet.error import ConnectionAborted
 
+from lbrynet.txlbryum.factory import StratumClient
+
 from lbryum import wallet as lbryum_wallet
 from lbryum.network import Network
 from lbryum.simple_config import SimpleConfig
-from lbryum.constants import COIN
+from lbryum.constants import COIN, HEADERS_URL
 from lbryum.commands import Commands
 from lbryum.errors import InvalidPassword
 
@@ -882,6 +886,7 @@ class LBRYumWallet(Wallet):
         d.addCallback(lambda _: self._load_wallet())
         d.addCallback(lambda _: self._start_check.start(.1))
         d.addCallback(lambda _: network_start_d)
+        d.addCallback(lambda _: self._download_blockchain())
         d.addCallback(lambda _: self._load_blockchain())
         d.addCallback(lambda _: log.info("Subscribing to addresses"))
         d.addCallback(lambda _: self.wallet.wait_until_synchronized(lambda _: None))
@@ -945,6 +950,56 @@ class LBRYumWallet(Wallet):
                         addr_count)
         else:
             log.info("Wallet has %i addresses", addr_count)
+
+    def _download_blockchain(self):
+        blockchain_downloaded_d = defer.Deferred()
+        # gets the address of a lbryum server
+        server_addr = self.config.get("default_servers").keys()[0]
+        server_port = int(self.config.get("default_servers")[server_addr]['t'])
+        blockchain_name = self.config.get("chain")
+
+        def path():
+            if blockchain_name == 'lbrycrd_main':
+                return 'blockchain_headers'
+            else:
+                return '%s_headers' % blockchain_name.split("_")[1]
+
+        def _download_headers_from_s3():
+            filename = "/root/temp/" + path()
+            try:
+                if blockchain_name != "lbrycrd_main":
+                    raise Exception("headers for %s are not available from s3" % blockchain_name)
+                log.info("downloading headers from %s", HEADERS_URL)
+                try:
+                    headers = requests.get(HEADERS_URL, timeout=30)
+                    with open(filename, 'wb') as f:
+                        # this answer said shutil was faster, so I used it
+                        # https://stackoverflow.com/a/39217788
+                        shutil.copyfileobj(headers.raw, f)
+                except:
+                    raise
+                log.info("Downloaded the blockchain headers")
+                reactor.callFromThread(blockchain_downloaded_d.callback, True)
+            except Exception:
+                log.warning("download failed. creating empty headers file: %s", filename)
+                open(filename, 'wb+').close()
+
+        def _download_bc_headers(client):
+            # x = yield client.blockchain_get_server_height()
+            # x = int(x)
+            x = 347681
+            y = int(self.network.get_local_height())
+            if x - y > 5:
+                _download_headers_from_s3()
+            else:
+                raise KeyboardInterrupt("La La Land is a good movie.")
+
+        txlbryum_factory = StratumClient(blockchain_downloaded_d)
+        reactor.connectTCP(server_addr, server_port, txlbryum_factory)
+        _download_bc_headers(txlbryum_factory)
+
+        blockchain_downloaded_d.addCallback(lambda _: blockchain_downloaded_d)
+        blockchain_downloaded_d.addErrback(log.exception)
 
     def _load_blockchain(self):
         blockchain_caught_d = defer.Deferred()
