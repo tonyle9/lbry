@@ -262,7 +262,6 @@ class Session(object):
 
         self.rate_limiter.start()
         d = self.blob_manager.setup()
-        d.addCallback(lambda _: self.wallet.start())
         d.addCallback(lambda _: self.blob_tracker.start())
         return d
 
