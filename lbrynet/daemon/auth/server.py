@@ -377,6 +377,7 @@ class AuthJSONRPCServer(AuthorizedBase):
 
     def _check_header_source(self, request, header):
         """Check if the source of the request is allowed based on the header value."""
+        log.info("header: %s:", header)
         source = request.getHeader(header)
         if not self._check_source_of_request(source):
             log.warning("Attempted api call from invalid %s: %s", header, source)
@@ -384,6 +385,7 @@ class AuthJSONRPCServer(AuthorizedBase):
         return True
 
     def _check_source_of_request(self, source):
+        log.info("source: %s:", source)
         if source is None:
             return True
         if conf.settings['api_host'] == '0.0.0.0':
@@ -397,11 +399,13 @@ class AuthJSONRPCServer(AuthorizedBase):
 
     def _is_from_allowed_origin(self, server, port):
         allowed_origin = conf.settings['allowed_origin']
+        log.info("server/port: %s:%i", server, port)
         if not allowed_origin:
             return False
         if allowed_origin == '*':
             return True
         allowed_server, allowed_port = self.get_server_port(allowed_origin)
+        log.info("allowed server/port: %s:%i", allowed_server, allowed_port)
         return (allowed_server, allowed_port) == (server, port)
 
     def get_server_port(self, origin):
